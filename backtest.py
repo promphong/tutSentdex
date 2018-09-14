@@ -1,3 +1,4 @@
+
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import pandas as pd
@@ -68,7 +69,7 @@ class MarketIntradayPortfolio(Portfolio):
         pos_diff = self.positions.diff()
         
         
-        portfolio['price_diff'] = self.bars['Price']-self.bars['Open']
+        portfolio['price_diff'] = self.bars['PX_LAST']-self.bars['PX_OPEN']
         portfolio['profit'] = self.positions[self.symbol] * portfolio['price_diff']
 
         portfolio['total'] = self.initial_capital + portfolio['profit'].cumsum()
@@ -77,15 +78,14 @@ class MarketIntradayPortfolio(Portfolio):
 
 if __name__ == '__main__':
     
-    data_source = r'D:\Projects\Data\USD_THB Historical Data.csv'
-    df = pd.read_csv(data_source)
+    df = pd.read_csv('./USDTHBx.csv', index_col='Date')
     symbol='USDTHB'
         # Create a set of random forecasting signals for SPY
     
 #    def maCross(df):
 #        
 #    
-#    rfs = MachineLearningForecastingStrategy(symbol, df, pred)
+#    rfs = RandomForecastingStrategy(symbol, df)
 #    signals = rfs.generate_signals()
 #
 #    # Create a portfolio of SPY
@@ -94,36 +94,40 @@ if __name__ == '__main__':
 #
 #    print(returns.tail(10))
         
-    #==================================== Fixed numpy where
-#    def conditions(x):
-#    if x > 400:
-#        return "High"
-#    elif x > 200:
-#        return "Medium"
-#    else:
-#        return "Low"
-#
-#    func = np.vectorize(conditions)
-#    energy_class = func(df_energy["consumption_energy"])
-#    
-#    # Use 
-#    df_energy["energy_class"] = energy_class
-    #====================================
         
-    ma = pd.Series(talib.MA(df['Price'], 20), name='MA')
-    rsi = pd.Series(talib.RSI(df['Price'], 14), name='RSI')
-    df = df.join(ma)
-    df = df.join(rsi)
+    ma = pd.Series(talib.MA(df['PX_LAST'], 20), name='MA')
+    rsi = pd.Series(talib.RSI(df['PX_LAST'], 14), name='RSI')
+    adx = pd.Series(talib.ADX(df['PX_HIGH'], df['PX_LOW'], df['PX_LAST'], 14), name='ADX')
+    kama = pd.Series(talib.KAMA(df['PX_LAST'], 20), name='KAMA')
+    cci = pd.Series(talib.CCI(df['PX_HIGH'], df['PX_LOW'], df['PX_LAST'], 14), name='CCI')
+    avg_price = pd.Series((df['PX_LAST']*0.7)+(df['PX_OPEN']*0.3), name='Avg.Price') #for enter order 
+    
+    
+    #df = df.join(ma)
+    #df = df.join(rsi)
+    #df = df.join(adx)
+    df = df.join(avg_price)
+    
+    test_lag = df['avg_price'].shift(1)
+    
+#    def signal_generate(indi_1, indi_2, indi_3):
+#      if np.logical_and(indi_1 > indi_2, indi_3 > 50): 
+#        return 0
+#      else:
+#        return 1
+#    
+#    signal_func = np.vectorize(signal_generate)
+#    signas2 = signal_func(df['MA'], df['PX_LAST'], df['RSI'])
+    
+    
     #signal = [1 if ma[i] > df['Price'][i] else 0 for i in df['MA']]
-    signal = pd.Series(np.where(np.greater(df['Price'], df['MA']),1,0), name='sig1')
-    signal2 = pd.Series(np.where(np.logical_and(np.greater_equal(df['RSI'], 50), np.greater(df['Price'], df['MA'])),1,0), name='sig2')
+    #signal = pd.Series(np.where(np.greater(df['PX_LAST'], df['MA']),1,0), name='sig1')
+    #signal2 = pd.Series(np.where(np.logical_and(np.greater_equal(df['RSI'], 50), np.greater(df['Price'], df['MA'])),1,0), name='sig2')
     
-    df = df.join(signal)
-    df = df.join(signal2)
+#    df = df.join(signal)
+#    df = df.join(signal2)
+#    
+#    writer = pd.ExcelWriter('output.xls')
+#    df.to_excel(writer, 'Sheet1')
+#    writer.save()
     
-    writer = pd.ExcelWriter('output.xls')
-    df.to_excel(writer, 'Sheet1')
-    writer.save()
-    
-
-
