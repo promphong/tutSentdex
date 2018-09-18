@@ -7,3 +7,6 @@ http://jonathankinlay.com/wp-content/uploads/ONE-MILLION-MODELS.pdf
 https://blog.exsilio.com/all/accuracy-precision-recall-f1-score-interpretation-of-performance-measures/
 
 https://stackabuse.com/introduction-to-neural-networks-with-scikit-learn/
+
+ANN portfolio base technical 
+https://eprints.qut.edu.au/66229/1/Andrew_Ashwood_Thesis.pdf
