@@ -2,7 +2,6 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
-import seaborn as sns
 import talib
 from sklearn.model_selection import train_test_split
 
@@ -27,7 +26,7 @@ class Portfolio(object):
         raise NotImplementedError("Should implement backtest_portfolio()!")
 
 
-# Custom Strategy       
+# Custom Strategy Mixed indicators       
 class CustomStrategy(Strategy):   
     
     def __init__(self, symbol, bars):
@@ -41,8 +40,8 @@ class CustomStrategy(Strategy):
                (self.bars['ADX'] > 20),1,0)
         return signals
 
-# MA Strategy
-class MovingAverageStrategy(Strategy):
+# SMA Strategy momentum
+class SMA_Strategy(Strategy):
     
     def __init__(self, symbol, bars):
         self.symbol = symbol
@@ -50,11 +49,23 @@ class MovingAverageStrategy(Strategy):
         
     def generate_signals(self):
         signals = pd.DataFrame(index=self.bars.index)
-        signals['signal'] = np.where((self.bars['Avg.Price'] > self.bars['MA']),1,0)
+        signals['signal'] = np.where((self.bars['Avg.Price'] > self.bars['SMA']),1,0)
+        return signals
+
+# EMA Strategy momentum
+class EMA_Strategy(Strategy):
+    
+    def __init__(self, symbol, bars):
+        self.symbol = symbol
+        self.bars = bars
+        
+    def generate_signals(self):
+        signals = pd.DataFrame(index=self.bars.index)
+        signals['signal'] = np.where((self.bars['Avg.Price'] > self.bars['EMA']),1,0)
         return signals
       
-# RSI Strategy
-class RelativeStrenghStrategy(Strategy):
+# RSI Strategy momentum
+class RSI_Strategy(Strategy):
     
     def __init__(self, symbol, bars):
         self.symbol = symbol
@@ -62,11 +73,13 @@ class RelativeStrenghStrategy(Strategy):
     
     def generate_signals(self):
         signals = pd.DataFrame(index=self.bars.index)
-        signals['signal'] = np.where((self.bars['RSI'] > 50),1,0)
+        signals['signal'] = np.where((self.bars['RSI'] > 50) & \
+                (self.bars['Open'].diff() > 0) & \
+                (self.bars['RSI'] > self.bars['Avg.RSI']),1,0)
         return signals
 
-# KAMA Strategy
-class KalmanMovingAverageStrategy(Strategy):
+# KAMA Strategy momentum
+class KAMA_Strategy(Strategy):
     
   def __init__(self, symbol, bars):
         self.symbol = symbol
@@ -77,7 +90,7 @@ class KalmanMovingAverageStrategy(Strategy):
       signals['signal'] = np.where((self.bars['Avg.Price'] > self.bars['KAMA']),1,0)
       return signals
     
-# MACD Strategy
+# MACD Strategy momentum
 class MACD_Strategy(Strategy):
   
   def __init__(self, symbol, bars):
@@ -86,10 +99,11 @@ class MACD_Strategy(Strategy):
       
   def generate_signals(self):
       signals = pd.DataFrame(index=self.bars.index)
-      signals['signal'] = np.where((self.bars['MACD_Hist'] > 0),1,0)
+      signals['signal'] = np.where((self.bars['MACD_Hist'] > 0) & \
+             (self.bars['Open'].diff() > 0),1,0)
       return signals
     
-# CCI Strategy
+# CCI Strategy momentum
 class CCI_Strategy(Strategy):
   
   def __init__(self, symbol, bars):
@@ -98,7 +112,33 @@ class CCI_Strategy(Strategy):
       
   def generate_signals(self):
       signals = pd.DataFrame(index=self.bars.index)
-      signals['signal'] = np.where((self.bars['CCI'] > self.bars['Avg.CCI']),1,0)
+      signals['signal'] = np.where((self.bars['CCI'] > self.bars['Avg.CCI']) & \
+               (self.bars['Open'].diff() > 0),1,0)
+      return signals
+    
+# Parabolic SAR Strategy (Trend Reversal)
+class ParabolicSAR_Strategy(Strategy):
+  
+  def __init__(self, symbol, bars):
+      self.symbol = symbol
+      self.bars = bars
+      
+  def generate_signals(self):
+      signals = pd.DataFrame(index=self.bars.index)
+      signals['signal'] = np.where((self.bars['Avg.Price'] > self.bars['SAR']),1,0)
+      return signals
+    
+# ADX Strategy (Trend Reversal)
+class ADX_Strategy(Strategy):
+  
+  def __init__(self, symbol, bars):
+      self.symbol = symbol
+      self.bars = bars
+      
+  def generate_signals(self):
+      signals = pd.DataFrame(index=self.bars.index)
+      signals['signal'] = np.where((self.bars['ADX'] > 25) & \
+               (self.bars['DI_Plus'] > self.bars['DI_Min']),1,0)
       return signals
     
 class PortfolioExcute(Portfolio):
@@ -113,14 +153,14 @@ class PortfolioExcute(Portfolio):
         
     def generate_positions(self):
         positions = pd.DataFrame(index=self.signals.index).fillna(0.0)
-        positions[self.symbol] = (self.initial_capital*self.pct_hedge *self.signals)
+        positions[self.symbol] = (self.initial_capital* self.pct_hedge * self.signals)
         return positions
                     
     def backtest_portfolio(self):
         portfolio = pd.DataFrame(index=self.bars.index)        
-        portfolio['Order_Excute'] = self.bars['Close'] - self.bars['Avg.Price'] #Logical avg.price(t-1) - close(t)
-        portfolio['Signal'] = self.signals['signal'] # test generate
-        portfolio['PnL'] = (self.positions[self.symbol])/self.bars['Avg.Price'] * portfolio['Order_Excute']
+        portfolio['Order_Excute'] = self.bars['Close'] - self.bars['Open'] #Logical avg.price(t-1) - close(t)
+        portfolio['Signal'] = self.signals['signal'] 
+        portfolio['PnL'] = (self.positions[self.symbol])/self.bars['Open'] * portfolio['Order_Excute']
         portfolio['Acc_Port'] = self.initial_capital + portfolio['PnL'].cumsum()
         portfolio['Return'] = portfolio['Acc_Port'].pct_change()
         return portfolio
@@ -141,36 +181,9 @@ class PortfolioExcute(Portfolio):
 #                 ("Max Drawdown", "%0.2f%%" %(max_drawdown * 100.0))] 
         
 
-        return [port_value, cum_return, sharpe_ratio, max_drawdown, total_trade, pct_win_trade, pct_loss_trade]
+        return [port_value, cum_return, sharpe_ratio, 
+                max_drawdown, total_trade, pct_win_trade, pct_loss_trade]
       
-    
-#class MarketTestPortfolio(Portfolio):
-#    
-#    def __init__(self, symbol, bars, initial_capital=100000.0, pct_hedge = 1):
-#        self.symbol = symbol        
-#        self.bars = bars
-##        self.signals = signals
-#        self.initial_capital = float(initial_capital)
-#        self.trading_sum = float(pct_hedge)
-#        self.positions = self.generate_positions()
-#        
-#    def generate_positions(self):
-#        positions = pd.DataFrame(index=self.bars.index).fillna(0.0)
-#        positions[self.symbol] = self.initial_capital*self.pct_hedge *self.bars['Signal']
-#        return positions
-#                    
-#    def backtest_portfolio(self):
-#        portfolio = pd.DataFrame(index=self.positions.index)        
-#        portfolio['order_ex'] = (self.bars['Avg.Price'] / self.bars['Close'])-1
-#        portfolio['profit'] = self.positions[self.symbol] * portfolio['order_ex']
-#        portfolio['total'] = self.initial_capital + portfolio['profit'].cumsum()
-#        portfolio['returns'] = portfolio['total'].pct_change()
-#        
-#        # Performance Report generate 
-        # get index -> df.index.values[]
-        # date_diff -> pd.to_datetime() - pd.to_datetime()
-#        
-#        return portfolio
  
     
 # Helping functions     
@@ -204,7 +217,8 @@ if __name__ == '__main__':
     
     performance_list = {}
     
-    for i in range(10,101):
+    for i in range(10,45):
+#    for i in [p/100 for p in range(1,21)]:
       file_path = r'D:\Project files\USDTHB Historical Data.csv'
       df = pd.read_csv(file_path)
       df = df.set_index(pd.to_datetime(df['Date']))
@@ -212,22 +226,34 @@ if __name__ == '__main__':
       df = df.dropna()
       symbol='USDTHB'
 #      cci = pd.Series(talib.CCI(df['High'], df['Low'], df['Close'], i), name='CCI')
-#      macd, macdsignal, macdhist = talib.MACD(df['Close'], fastperiod=i, slowperiod=26, signalperiod=9)
-#      macd = pd.Series(macd, name='MACD')
-#      macdsignal = pd.Series(macdsignal, name='MACD_Signal')
-#      macdhist = pd.Series(macdhist, name='MACD_Hist')
-      ma = pd.Series(talib.MA(df['Close'], i), name='MA')
+      macd, macdsignal, macdhist = talib.MACD(df['Close'], fastperiod=8, slowperiod=i, signalperiod=8)
+      macd = pd.Series(macd, name='MACD')
+      macdsignal = pd.Series(macdsignal, name='MACD_Signal')
+      macdhist = pd.Series(macdhist, name='MACD_Hist')
+#      sma = pd.Series(talib.SMA(df['Close'], i), name='SMA')
+#      sar = pd.Series(talib.SAR(df['High'], df['Low'], acceleration=i, maximum=0.2), name='SAR')
+#      ema = pd.Series(talib.EMA(df['Close'], i), name='EMA')
+#      rsi = pd.Series(talib.RSI(df['Close'], i), name='RSI')
+#      kama = pd.Series(talib.KAMA(df['Close'], i), name='KAMA')
+#      adx = pd.Series(talib.ADX(df['High'], df['Low'], df['Close'], i), name='ADX')
+#      di_min = pd.Series(talib.MINUS_DI(df['High'], df['Low'], df['Close'], i), name='DI_Min')
+#      di_plus = pd.Series(talib.PLUS_DI(df['High'], df['Low'], df['Close'], i), name='DI_Plus')
       avg_price = pd.Series((df['Close']*0.7)+(df['Open']*0.1)+(df['High']*0.1)+(df['Low']*0.1), name='Avg.Price').shift(1)
       
-      df = df.join(ma)
+      df = df.join(macd)
+      df = df.join(macdsignal)
+      df = df.join(macdhist)
+#      df = df.join(di_plus)
+#      df = df.join(di_min)
       
       # Average indicator series
-      #avg_cci = pd.Series(talib.MA(df['CCI'], 20), name='Avg.CCI')
+#      avg_cci = pd.Series(talib.MA(df['CCI'], 10), name='Avg.CCI')
+#      avg_rsi = pd.Series(talib.MA(df['RSI'], 10), name='Avg.RSI')
       
-      #df = df.join(avg_cci)
+#      df = df.join(avg_rsi)
       df = df.join(avg_price)
 
-      strategy = MovingAverageStrategy(symbol, df)
+      strategy = MACD_Strategy(symbol, df)
       signals = strategy.generate_signals()
       
       port = PortfolioExcute(symbol, signals, df, initial_capital=1000000)
@@ -235,7 +261,7 @@ if __name__ == '__main__':
       df = df.join(returns) # Write to report 
       performance = port.performance_summary()
       
-      performance_list["MA_%d"%i] = performance
+      performance_list["MACD_8_{}_8".format(i)] = performance
       
       # gen dict to dataframe 
     performance_report = pd.DataFrame.from_dict(performance_list, 
@@ -248,11 +274,11 @@ if __name__ == '__main__':
                                                         '%Win Trade',
                                                         '%Lose Trade'])
     
-    writer = pd.ExcelWriter('performance_CCI_20.xls')
-    performance_report.to_excel(writer, 'CCI')
+    writer = pd.ExcelWriter('performance_MACD_34.xls')
+    performance_report.to_excel(writer, 'MACD')
     writer.save()
     
-    #==================================== 3 parameter ==============================
+    #==================================== 3 parameter ==========================
     
 #    for i in range(5,27):
 #      for j in range(27,50):
@@ -300,7 +326,7 @@ if __name__ == '__main__':
     
     # ========================= Loop generate parameter =======================
    
-    
+    # ======================== Gen Output report detail =======================
 #    file_path = r'D:\Project files\USDTHB Historical Data.csv'
 #    df = pd.read_csv(file_path)
 #    df = df.set_index(pd.to_datetime(df['Date']))
@@ -318,6 +344,7 @@ if __name__ == '__main__':
 #    macdsignal = pd.Series(macdsignal, name='MACD_Signal')
 #    macdhist = pd.Series(macdhist, name='MACD_Hist')
 #    avg_price = pd.Series((df['Close']*0.7)+(df['Open']*0.1)+(df['High']*0.1)+(df['Low']*0.1), name='Avg.Price').shift(1) #for enter order 
+##    price_diff = pd.Series(df['Open'].diff(),name='PriceDiff')
 #    
 #    indicators = [avg_price,ma, rsi, adx, kama, cci, macd, macdsignal, macdhist]
 #    
@@ -328,7 +355,7 @@ if __name__ == '__main__':
 #    avg_cci = pd.Series(talib.MA(df['CCI'], 20), name='Avg.CCI')
 #    df = df.join(avg_cci)
 #    
-#    # ====================== Use class generate ===============================
+###    # ====================== Use class generate ===============================
 #    strategy = CCI_Strategy(symbol, df)
 #    signals = strategy.generate_signals()
 #    
@@ -336,15 +363,16 @@ if __name__ == '__main__':
 #    returns = ma_port.backtest_portfolio()
 #    df = df.join(returns) # Write to report 
 #    performance = ma_port.performance_summary()
-    
-    
-     # ====================== Use class generate ==============================
-    
-    
+#    
+#    
+##     # ====================== Use class generate ==============================
+#    
+#    
 #    writer = pd.ExcelWriter('output.xls')
 #    df.to_excel(writer, 'Sheet1')
 #    writer.save()
-    
+
+    # ======================== Gen Output report detail =======================    
 
 #     ====================== Hands on generate signal =========================
 #    def signal_ma(indi_1, close):
