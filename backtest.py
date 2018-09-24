@@ -237,7 +237,7 @@ if __name__ == '__main__':
     
     for f in range(2015, 2019):
     
-        for i in range(27,52):
+        for i in range(26,51):
 #        for i in [p/100 for p in range(1,21)]:
           file_path = r'D:\Projects\Data\USDTHB Historical Data.csv'  
     #      file_path = r'D:\Project files\USDTHB Historical Data.csv'
@@ -303,7 +303,7 @@ if __name__ == '__main__':
           
           workbooks["MACD_{}".format(f)] = performance_report
           
-    writer = pd.ExcelWriter('performance_MACD_slow.xls')
+    writer = pd.ExcelWriter('performance_MACD_fast.xls')
     for ws, wb in workbooks.items():
         wb.to_excel(writer, sheet_name=ws)
     writer.save()
@@ -357,8 +357,7 @@ if __name__ == '__main__':
 #    
 #    
 ###     # ====================== Use class generate ==============================
-##    
-##    
+#
 #    writer = pd.ExcelWriter('output.xls')
 #    df.to_excel(writer, 'Sheet1')
 #    writer.save()
